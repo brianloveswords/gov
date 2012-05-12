@@ -2,7 +2,7 @@ var path = require('path');
 var commands = {};
 var server;
 
-var globalOptions = JSON.parse(process.env['_governerOptions']);
+var globalOptions = JSON.parse(process.env['_govOptions']);
 
 /**
  * Route a message from the parent to the appropriate command.
