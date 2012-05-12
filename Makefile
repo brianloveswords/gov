@@ -4,6 +4,6 @@ test:
 	@NODE_ENV=test ./node_modules/.bin/mocha
 
 lint:
-	@./node_modules/.bin/jshint *.js
+	@./node_modules/.bin/jshint lib/*.js
 
 .PHONY: test lint

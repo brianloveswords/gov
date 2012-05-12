@@ -1,6 +1,6 @@
 var util = require('util');
 var assert = require('assert');
-var gov = require('../gov.js');
+var Gov = require('../lib/gov.js');
 var fs = require('fs');
 
 var STABLE = __dirname + '/modules/stable.js';
@@ -11,96 +11,94 @@ var DUMMY_JSON = __dirname + '/modules/dummy.json';
 var DUMMY_YML = __dirname + '/modules/dummy.yml';
 
 describe('Gov', function () {
-  var Gov = gov.Gov;
-
   it('should be instantiable', function () {
     var gov = new Gov();
     assert.ok(gov instanceof Gov, 'should be an instance of Gov');
   });
 
-  describe('#startApp', function () {
+  describe('#startServer', function () {
 
     describe('should emit an `error` event when', function () {
       it('module is missing', function (done) {
         var gov = new Gov();
-        gov.once('error', function (err, app) {
+        gov.once('error', function (err, server) {
           assert.ok(err.message.match(/module/i), 'should be a `module not found` error, got ' + err.message);
-          assert.ok(app.errors[0] === err, 'app errors stack should include error');
+          assert.ok(server.errors[0] === err, 'server errors stack should include error');
           done();
         });
-        gov.startApp('definite-not-found.js')
+        gov.startServer('definite-not-found.js')
       });
 
       it('module is missing `.listen` method', function (done) {
         var gov = new Gov();
-        gov.once('error', function (err, app) {
+        gov.once('error', function (err, server) {
           assert.ok(err.name === 'TypeError', 'should be a TypeError');
           assert.ok(err.message.match(/listen/i), 'should have `listen` in the message');
-          assert.ok(app.errors[0] === err, 'app errors stack should include error');
+          assert.ok(server.errors[0] === err, 'server errors stack should include error');
           // we gotta wait a bit before the exitCode is set.
           setTimeout(function () {
-            assert.ok(app.worker().exitCode > 0, 'exitCode should be greater than 0');
+            assert.ok(server.worker().exitCode > 0, 'exitCode should be greater than 0');
             done();
           }, 100);
         });
-        gov.startApp(NO_LISTEN)
+        gov.startServer(NO_LISTEN)
       });
 
-      it('the app crashes for any reason', function (done) {
+      it('the server crashes for any reason', function (done) {
         var gov = new Gov();
-        gov.once('error', function (err, app) {
+        gov.once('error', function (err, server) {
           assert.ok(err.name === 'Error', 'should be an Error');
           assert.ok(err.message.match(/^lol$/i), 'message should be `lol`');
-          assert.ok(app.errors[0] === err, 'app errors stack should include error');
+          assert.ok(server.errors[0] === err, 'server errors stack should include error');
           done();
         });
-        gov.startApp(SLOW_CRASH)
+        gov.startServer(SLOW_CRASH)
       });
     });
 
     it('should emit a `listening` event when it starts listening', function (done) {
       var gov = new Gov();
-      gov.once('listening', function (address, app) {
+      gov.once('listening', function (address, server) {
         assert.ok('port' in address, '`address` should have port');
         assert.ok('address' in address, '`address` should have address');
         done();
       });
-      gov.startApp(STABLE);
+      gov.startServer(STABLE);
     });
 
     it('should be able to serve from a unix domain socket', function (done) {
       var gov = new Gov();
       var socketPath = '/tmp/gov-socket-test.sock';
-      gov.once('listening', function (address, app) {
+      gov.once('listening', function (address, server) {
         assert.ok(address === socketPath, 'address should be ' + socketPath + ' got ' + util.inspect(address));
         done();
       });
-      gov.startApp(STABLE, { port: socketPath });
+      gov.startServer(STABLE, { port: socketPath });
     });
 
     it('should be able to serve from a specified port', function (done) {
       var gov = new Gov();
       var socketPath = '/tmp/gov-socket-test.sock';
       var port = 7291;
-      gov.once('listening', function (address, app) {
+      gov.once('listening', function (address, server) {
         assert.ok(address.port === port, 'port should be ' + port + ' got ' + util.inspect(address.port));
         done();
       });
-      gov.startApp(STABLE, { port: port });
+      gov.startServer(STABLE, { port: port });
     });
 
     it('should be able to serve from a specified address', function (done) {
       var gov = new Gov();
       var socketPath = '/tmp/gov-socket-test.sock';
       var addy = '0.0.0.0';
-      gov.once('listening', function (address, app) {
+      gov.once('listening', function (address, server) {
         assert.ok(address.address === addy, 'host should be ' + addy + ' got ' + util.inspect(address.addy));
         done();
       });
       gov.once('error', function (err) {
         assert.ok(false, 'not expecting an error, shiiiiit: ' + util.inspect(err));
       });
-      gov.startApp(STABLE, { address: addy });
+      gov.startServer(STABLE, { address: addy });
     });
 
 
@@ -109,25 +107,25 @@ describe('Gov', function () {
       var gotDeath = false;
       var gotRestart = false;
 
-      gov.once('death', function (err, app) {
+      gov.once('death', function (err, server) {
         gotDeath = true;
       });
 
-      gov.once('restarting', function (err, app) {
+      gov.once('restarting', function (err, server) {
         gotRestart = true;
-        gov.once('listening', function (address, app) {
+        gov.once('listening', function (address, server) {
           // wait a bit to make sure we have a chance to catch the `death` event
           setTimeout(function () {
-            assert.ok(app.restarts === 1, 'should have restarted once');
+            assert.ok(server.restarts === 1, 'should have restarted once');
             assert.ok(gotRestart, 'should have gotten a `restart` event');
             assert.ok(gotDeath, 'should have gotten a `death` event');
-            app.kill();
+            server.kill();
             done();
           }, 200);
         });
       });
 
-      gov.startApp(SLOW_CRASH);
+      gov.startServer(SLOW_CRASH);
     });
 
     it('should not try to restart a faulty server', function (done) {
@@ -143,23 +141,23 @@ describe('Gov', function () {
         done();
       });
 
-      gov.startApp(FAST_CRASH);
+      gov.startServer(FAST_CRASH);
     });
   });
 
   // we have to do this in a weird way -- for some reason, fs.watch on .json files
   // does not work inside of `it()` blocks. I have no idea why.
   describe('watching directories', function () {
-    var app = new Gov().makeApp(STABLE);
+    var server = new Gov().makeServer(STABLE);
 
     before(function () {
-      app.watch();
+      server.watch();
     });
 
     it('should watch directory for changggges', function (done) {
       var gov = new Gov({ watch: true });
 
-      app.once('updating', function (changes) {
+      server.once('updating', function (changes) {
         assert.ok(changes.length === 2);
         done();
       });
