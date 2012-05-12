@@ -142,21 +142,21 @@ App.prototype._newWorker = function newWorker() {
   return worker;
 };
 
-function Governer(options) {
+function Gov(options) {
   this.options = options || { };
   this.apps = { };
 }
-util.inherits(Governer, EventEmitter);
+util.inherits(Gov, EventEmitter);
 
 /**
  * Make and start a new application.
  *
- * @see Governer#makeApp
+ * @see Gov#makeApp
  * @see App#start
  * @return {App} the hopefully now running application.
  */
 
-Governer.prototype.startApp = function startApp(path, options) {
+Gov.prototype.startApp = function startApp(path, options) {
   var app = this.makeApp(path, options);
   app.start();
   return app;
@@ -172,7 +172,7 @@ Governer.prototype.startApp = function startApp(path, options) {
  * @return {App} an application instance
  */
 
-Governer.prototype.makeApp = function makeApp(path, options) {
+Gov.prototype.makeApp = function makeApp(path, options) {
   var app, worker;
   options = _.extend(this.options, options);
 
@@ -210,4 +210,4 @@ Governer.prototype.makeApp = function makeApp(path, options) {
 process.on('exit', destroyAllWorkers);
 process.on('uncaughtException', destroyAllWorkers);
 
-exports.Governer = Governer;
+exports.Gov = Gov;

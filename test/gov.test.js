@@ -7,19 +7,19 @@ var STABLE = __dirname + '/modules/server.js';
 var NO_LISTEN = __dirname + '/modules/no-listen.js';
 var SLOW_CRASHER = __dirname + '/modules/start-then-crash.js';
 
-describe('Governer', function () {
-  var Governer = gov.Governer;
+describe('Gov', function () {
+  var Gov = gov.Gov;
 
   it('should be instantiable', function () {
-    var gov = new Governer();
-    assert.ok(gov instanceof Governer, 'should be an instance of Governer');
+    var gov = new Gov();
+    assert.ok(gov instanceof Gov, 'should be an instance of Gov');
   });
 
   describe('#startApp', function () {
 
     describe('should emit an `error` event when', function () {
       it('module is missing', function (done) {
-        var gov = new Governer();
+        var gov = new Gov();
         gov.on('error', function (err, app) {
           assert.ok(err.message.match(/module/i), 'should be a `module not found` error, got ' + err.message);
           assert.ok(app.errors[0] === err, 'app errors stack should include error');
@@ -29,7 +29,7 @@ describe('Governer', function () {
       });
 
       it('module is missing `.listen` method', function (done) {
-        var gov = new Governer();
+        var gov = new Gov();
         gov.on('error', function (err, app) {
           assert.ok(err.name === 'TypeError', 'should be a TypeError');
           assert.ok(err.message.match(/listen/i), 'should have `listen` in the message');
@@ -44,7 +44,7 @@ describe('Governer', function () {
       });
 
       it('the app crashes for any reason', function (done) {
-        var gov = new Governer();
+        var gov = new Gov();
         gov.on('error', function (err, app) {
           assert.ok(err.name === 'Error', 'should be an Error');
           assert.ok(err.message.match(/^lol$/i), 'message should be `lol`');
@@ -56,7 +56,7 @@ describe('Governer', function () {
     });
 
     it('should emit a `listening` event when it starts listening', function (done) {
-      var gov = new Governer();
+      var gov = new Gov();
       gov.on('listening', function (address, app) {
         assert.ok('port' in address, '`address` should have port');
         assert.ok('address' in address, '`address` should have address');
@@ -66,7 +66,7 @@ describe('Governer', function () {
     });
 
     it('should be able to serve from a unix domain socket', function (done) {
-      var gov = new Governer();
+      var gov = new Gov();
       var socketPath = '/tmp/gov-socket-test.sock';
       gov.on('listening', function (address, app) {
         assert.ok(address === socketPath, 'address should be ' + socketPath + ' got ' + util.inspect(address));
@@ -76,7 +76,7 @@ describe('Governer', function () {
     });
 
     it('should be able to serve from a specified port', function (done) {
-      var gov = new Governer();
+      var gov = new Gov();
       var socketPath = '/tmp/gov-socket-test.sock';
       var port = 7291;
       gov.on('listening', function (address, app) {
@@ -87,7 +87,7 @@ describe('Governer', function () {
     });
 
     it('should be able to serve from a specified address', function (done) {
-      var gov = new Governer();
+      var gov = new Gov();
       var socketPath = '/tmp/gov-socket-test.sock';
       var addy = '0.0.0.0';
       gov.on('listening', function (address, app) {
@@ -102,7 +102,7 @@ describe('Governer', function () {
 
 
     it('should try to restart a crashing server', function (done) {
-      var gov = new Governer({ restart: true });
+      var gov = new Gov({ restart: true });
       gov.startApp(SLOW_CRASHER);
 
       var gotDeath = false;
