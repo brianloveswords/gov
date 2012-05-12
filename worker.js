@@ -1,38 +1,83 @@
-// * worker
-//   - should require, start app, let dictator know deets.
-//     - if it has a `.listen`, assume it's a server
-//   - catch unexpected errors, pass them to dictator
 var path = require('path');
+var commands = {}
+var server;
 
-var app;
-process.on('message', function (m) {
-  var action = commands[m.command]
-  if (action) return action(m);
+/**
+ * Route a message from the parent to the appropriate command.
+ * Silently fails if there is no route for the command.
+ *
+ * @param {Object} message
+ */
+
+process.on('message', function (message) {
+  var action = commands[message.command];
+  if (action) return action(message.options);
 });
+
+
+/**
+ * Emit `error` and `death` events when an uncaught exception occurs.
+ *
+ * @param {Error} err the uncaught exception
+ * @see `objectFromError`
+ */
 
 process.on('uncaughtException', function (err) {
   emit('error', objectFromError(err));
+  emit('death');
   process.exit(1);
 });
 
-var commands = {
-  'start': function startApp(opts) {
-    app = require(opts.path);
-    app.listen(0, '127.0.0.1');
+/**
+ * Emit a `death` event before exiting process.
+ */
 
-    app.on('listening', function () {
-      emit('listening', app.address());
-    });
+process.on('exit', function () {
+  emit('death');
+});
 
-    app.on('close', function () {
-      process.exit(0);
-    });
-  },
 
-  'stop': function stopApp(opts) {
-    app.close();
-  }
-}
+/**
+ * Start the server. Emits a listening event to parent with the OS given address
+ *
+ * @param {Object} options potentially including port and address
+ */
+
+commands.start = function startServer(options) {
+  var port, address;
+  server = require(options.path);
+  port = options.port || 0;
+  address = options.address || '127.0.0.1';
+
+  server.listen(port, address);
+
+  server.on('listening', function () {
+    emit('listening', server.address());
+  });
+
+  server.on('close', function () {
+    process.exit(0);
+  });
+};
+
+/**
+ * Stop new connections to the server and finish the process when the
+ * server socket is closed.
+ */
+
+commands.stop = function stopServer() {
+  server.close();
+  server.on('close', function () {
+    process.exit(0);
+  });
+};
+
+/**
+ * Turn an error into an object that's compatible with `emit`.
+ *
+ * @param {Error} err an error object
+ * @return {Object}
+ */
 
 function objectFromError(err) {
   return {
@@ -41,9 +86,24 @@ function objectFromError(err) {
     stack: err.stack,
     type: err.type,
     timestamp: Date.now()
+  };
+}
+
+/**
+ * Emit an event. If something goes wrong sending the message,
+ * just give up and die.
+ *
+ * @param {String} event name of the event to emit
+ * @param {Object} body thing to send.
+ */
+
+function emit(event, body) {
+  try {
+    process.send({ event: event, body: body });
+  } catch (ex) {
+    process.exit(1);
   }
 }
 
-function emit(event, body) {
-  process.send({ event: event, body: body });
-}
+// ping the governer every 30 seconds
+setInterval(function(){ emit('ping') }, 30000);
