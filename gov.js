@@ -8,9 +8,10 @@ var _workers = [];
 var WORKER_PATH = __dirname + '/worker.js';
 
 /** private */
-function forkWorker() {
+function forkWorker(options) {
+  options = options || {};
   var worker = fork(WORKER_PATH, null, {
-    env: process.env,
+    env: _.extend(process.env, { _governerOptions: JSON.stringify(options) }),
     cwd: __dirname
   });
 
@@ -113,7 +114,7 @@ App.prototype.kill = function kill(signal) {
  */
 
 App.prototype._newWorker = function newWorker() {
-  var worker = forkWorker();
+  var worker = forkWorker(this.options);
   var events = ['error', 'listening', 'death'];
 
   // Re-emit events from worker.
@@ -175,12 +176,10 @@ Governer.prototype.makeApp = function makeApp(path, options) {
   var app, worker;
   options = _.extend(this.options, options);
 
-  app = this.apps[path];
-  if (app) {
+  if ((app = this.apps[path])) {
     app.options = options;
     return app;
   }
-
   app = new App(path, options);
 
   // Check if we want to restart the app, try to restart and send emit a

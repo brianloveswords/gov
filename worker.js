@@ -1,6 +1,8 @@
 var path = require('path');
-var commands = {}
+var commands = {};
 var server;
+
+var globalOptions = JSON.parse(process.env['_governerOptions']);
 
 /**
  * Route a message from the parent to the appropriate command.
@@ -46,8 +48,8 @@ process.on('exit', function () {
 commands.start = function startServer(options) {
   var port, address;
   server = require(options.path);
-  port = options.port || 0;
-  address = options.address || '127.0.0.1';
+  port = options.port || globalOptions.port || 0;
+  address = options.address || globalOptions.address || '127.0.0.1';
 
   server.listen(port, address);
 
@@ -105,5 +107,7 @@ function emit(event, body) {
   }
 }
 
-// ping the governer every 30 seconds
-setInterval(function(){ emit('ping') }, 30000);
+// ping the governer
+setInterval(function () {
+  emit('ping');
+}, globalOptions.pingInterval || 30000);
