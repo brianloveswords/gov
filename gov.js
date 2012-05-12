@@ -3,6 +3,8 @@ var fork = require('child_process').fork;
 var util = require('util');
 var EventEmitter = require('events').EventEmitter;
 
+var _workers = [];
+
 var WORKER_PATH = __dirname + '/worker.js';
 
 /** private */
@@ -18,15 +20,21 @@ function forkWorker() {
     return worker.emit(msg.event, msg.body);
   });
 
+  _workers.push(worker);
   return worker;
 }
 
+function destroyAllWorkers() {
+  _workers.forEach(function (worker) { worker.kill() });
+}
 
 function App(path, options) {
+  this.restarts = 0;
   this.path = path;
   this.options = options;
-  this.errors = []
-}; util.inherits(App, EventEmitter);
+  this.errors = [];
+}
+util.inherits(App, EventEmitter);
 
 /**
  * Make or retrieve the app's worker.
@@ -37,7 +45,7 @@ function App(path, options) {
 App.prototype.worker = function worker() {
   this._worker = this._worker || this._newWorker();
   return this._worker;
-}
+};
 
 
 /**
@@ -49,10 +57,53 @@ App.prototype.worker = function worker() {
 App.prototype.start = function start() {
   this.worker().send({
     command: 'start',
-    path: this.path
+    options: _.extend({ path: this.path }, this.options)
   });
   return this;
-}
+};
+
+/**
+ * Send the `stop` command to the worker. Use the internal handle for the
+ * worker so we don't fork a new worker just to stop it.
+ *
+ * @return {App} this
+ */
+
+App.prototype.stop = function stop() {
+  if (!this._worker) return this;
+  this._worker.send({command: 'stop'});
+  return this;
+};
+
+/**
+ * Start a new worker and increment the restart counter. Kill the old worker
+ * if it's not already dead.
+ *
+ * @return {App} this
+ */
+
+App.prototype.restart = function restart() {
+  this.restarts += 1;
+  this.kill();
+  this._worker = null;
+  this.start();
+};
+
+
+
+/**
+ * Kill the worker (send a signal).
+ *
+ * @see Process#kill
+ * @return this
+ */
+
+App.prototype.kill = function kill(signal) {
+  if (!this._worker) return this;
+  this._worker.kill(signal);
+  return this;
+};
+
 
 /**
  * Fork a new worker and setup event re-emitting.
@@ -63,7 +114,7 @@ App.prototype.start = function start() {
 
 App.prototype._newWorker = function newWorker() {
   var worker = forkWorker();
-  var events = ['error', 'listening'];
+  var events = ['error', 'listening', 'death'];
 
   // Re-emit events from worker.
   events.forEach(function (event) {
@@ -74,7 +125,7 @@ App.prototype._newWorker = function newWorker() {
       // that occur so we can inspect them later, or print them to logs or
       // whatever.
       if (event === 'error')
-        this.errors.unshift(args[0])
+        this.errors.unshift(args[0]);
 
       // We might need the `worker`, so add it to the end of the arguments
       // list. We also need the `event` at the front so `emit` knows what
@@ -88,12 +139,13 @@ App.prototype._newWorker = function newWorker() {
   }.bind(this));
 
   return worker;
-}
+};
 
 function Governer(options) {
-  this.options = options;
+  this.options = options || { };
   this.apps = { };
-}; util.inherits(Governer, EventEmitter);
+}
+util.inherits(Governer, EventEmitter);
 
 /**
  * Make and start a new application.
@@ -107,7 +159,7 @@ Governer.prototype.startApp = function startApp(path, options) {
   var app = this.makeApp(path, options);
   app.start();
   return app;
-}
+};
 
 /**
  * Make a new application and store it in the governer's app table. If the
@@ -121,6 +173,7 @@ Governer.prototype.startApp = function startApp(path, options) {
 
 Governer.prototype.makeApp = function makeApp(path, options) {
   var app, worker;
+  options = _.extend(this.options, options);
 
   app = this.apps[path];
   if (app) {
@@ -130,17 +183,32 @@ Governer.prototype.makeApp = function makeApp(path, options) {
 
   app = new App(path, options);
 
-  // re-emit events
+  // Check if we want to restart the app, try to restart and send emit a
+  // restarting` signal instead of `error`.
   app.on('error', function (err) {
+    if (options.restart) {
+      this.emit('restarting', err);
+      return app.restart();
+    }
     this.emit('error', err, app);
   }.bind(this));
 
-  app.on('listening', function (address) {
-    this.emit('listening', address, app);
+  (['death', 'listening']).forEach(function (event) {
+    app.on(event, function () {
+      var args = [].slice.call(arguments);
+      // Remove the `worker`, add the `app`.
+      args.pop();
+      args.push(app);
+      args.unshift(event);
+      this.emit.apply(this, args);
+    }.bind(this));
   }.bind(this));
 
   return this.apps[path] = app;
-}
+};
 
+// don't leave orphans
+process.on('exit', destroyAllWorkers);
+process.on('uncaughtException', destroyAllWorkers);
 
 exports.Governer = Governer;
