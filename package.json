@@ -1,0 +1,19 @@
+{
+  "name": "gov",
+  "description": "Node.js server manager",
+  "tags": [ "manager", "restart", "process" ],
+  "homepage": "https://github.com/brianloveswords/gov",
+  "version": "0.1.0",
+  "bin": {
+    "up": "./bin/gov"
+  },
+  "main": "./lib/gov",
+  "engines": { "node": ">= 0.6.0" },
+  "dependencies": {
+    
+  },
+  "devDependencies": {
+    "mocha": "*",
+  },
+  "optionalDependencies": {},
+}

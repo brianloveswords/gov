@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+var colors = require('colors');
+var path = require('path');
+var debug = require('../lib/utils.js').debug(' gov ', 'magenta');
+var Gov = require('../lib/gov.js');
+
+var util = require('util');
+function inspect(o) { return util.inspect(o, null, null, true) }
+
+var program = require('commander');
+program
+  .version('0.0.1')
+  .usage('[options] path-to-server.js')
+  .option('-w, --watch', 'Watch directory for changes', false)
+  .option('-p, --port <number>', 'Port to run the server on [default: 0]', 0)
+//  .option('-s, --socket <path>', 'Run on unix socket at path')
+  .option('-a, --address <ip>', 'Address to run under [default: 0.0.0.0]', '0.0.0.0')
+  .option('-t, --timeout <milliseconds>', 'Time before server is stable [default: 200]', 200)
+  .parse(process.argv)
+
+var options = {
+  address: program.address,
+  stableAfter: program.timeout,
+  watch: program.watch,
+  port: program.port,
+}
+
+if (program.args.length !== 1) {
+  console.error('Error: too many arguments.');
+  console.log(program.helpInformation());
+  process.exit(1);
+}
+var serverPath = program.args.pop();
+debug('master pid is', process.pid.toString().green.bold);
+
+process.on('uncaughtException', function (err) {
+  console.log('shit, something went wrong');
+  console.dir(err);
+  process.exit(1);
+});
+
+var gov = new Gov(options);
+
+gov.on('error', function (err) {
+  console.log('shit, something went wrong');
+  console.dir(err);
+  process.exit(1);
+});
+
+gov.on('updating', function (files) {
+
+  console.log('\n');
+  files.map(function (n) { return 'file changed: ' + n.white })
+    .forEach(function (m) { debug(m) });
+  debug('restarting server\n');
+
+});
+
+gov.on('listening', function (address) {
+  debug('listening on', [address.address, ':', address.port].join('').white);
+  console.log();
+});
+
+gov.startServer(serverPath);
