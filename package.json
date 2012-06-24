@@ -1,19 +1,25 @@
 {
+  "author": "Brian J. Brennan <brianloveswords@gmail.com> (http://bjb.io)",
   "name": "gov",
   "description": "Node.js server manager",
   "tags": [ "manager", "restart", "process" ],
   "homepage": "https://github.com/brianloveswords/gov",
-  "version": "0.1.0",
-  "bin": {
-    "up": "./bin/gov"
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/brianloveswords/gov.git"
   },
+  "version": "0.1.0",
+  "bin": { "gov": "./bin/gov" },
+  "scripts": { "test": "make test" },
   "main": "./lib/gov",
   "engines": { "node": ">= 0.6.0" },
   "dependencies": {
-    
+    "colors": "*",
+    "commander": "~0.6.1",
+    "underscore": "~1.3.3"
   },
   "devDependencies": {
     "mocha": "*",
-  },
-  "optionalDependencies": {},
+    "jshint": "~0.7.0"
+  }
 }
